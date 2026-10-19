@@ -101,20 +101,40 @@
        "to match the project's namespaces (no invented layers/components), regenerate the "
        "IR, then wait for directives."))
 
-(defn grok-executable
-  []
+(defn- find-executable
+  "First executable among `env-var` and the install dirs, else bare `bin` for PATH."
+  [env-var bin home-dirs]
   (let [home (System/getenv "HOME")
-        named (System/getenv "GROK_BIN")
-        candidates (filter identity
-                           [named
-                            (when home (str home "/.grok/bin/grok"))
-                            "/usr/local/bin/grok"
-                            "/opt/homebrew/bin/grok"])]
+        candidates (concat [(System/getenv env-var)]
+                           (when home (map #(str home "/" % "/" bin) home-dirs))
+                           [(str "/usr/local/bin/" bin)
+                            (str "/opt/homebrew/bin/" bin)])]
     (or (first (filter (fn [p]
-                         (let [f (io/file p)]
-                           (and (.isFile f) (.canExecute f))))
+                         (when p
+                           (let [f (io/file p)]
+                             (and (.isFile f) (.canExecute f)))))
                        candidates))
-        "grok")))
+        bin)))
+
+(defn grok-executable []
+  (find-executable "GROK_BIN" "grok" [".grok/bin"]))
+
+(defn claude-executable []
+  (find-executable "CLAUDE_BIN" "claude" [".local/bin" ".claude/local"]))
+
+(defn agent-kind
+  "Companion CLI picked by UML_AGENT: claude, or grok (default)."
+  []
+  (if (= "claude" (System/getenv "UML_AGENT")) :claude :grok))
+
+(defn agent-command
+  "Interactive agent with standing rules and the launch prompt."
+  [kind]
+  (case kind
+    :claude [(claude-executable) "--dangerously-skip-permissions"
+             "--append-system-prompt" standing-rules launch-prompt]
+    :grok [(grok-executable) "--yolo" "--trust" "--rules" standing-rules
+           launch-prompt]))
 
 (defonce !session-name (atom nil))
 
@@ -174,12 +194,11 @@
 (defn new-session-args
   ([cwd] (new-session-args cwd (session-id cwd)))
   ([cwd session]
-   ["new-session" "-d" "-s" session "-c" cwd
-    "-e" "GROK_THEME=terminal"
-    "-e" "GROK_TERMINAL_THEME=1"
-    "-e" "COLORTERM=truecolor"
-    (grok-executable) "--yolo" "--trust" "--rules" standing-rules
-    launch-prompt]))
+   (into ["new-session" "-d" "-s" session "-c" cwd
+          "-e" "GROK_THEME=terminal"
+          "-e" "GROK_TERMINAL_THEME=1"
+          "-e" "COLORTERM=truecolor"]
+         (agent-command (agent-kind)))))
 
 (defn kill-session-args
   ([] (kill-session-args (current-session)))
@@ -752,7 +771,7 @@
         {:keys [woke?]} (request-regen! root)]
     (assoc state :mail-status (if woke?
                                 "Regen requested."
-                                "Regen queued; Grok session not attached."))))
+                                "Regen queued; agent session not attached."))))
 
 (defn- proposal-menu-click? [event hit]
   (and (right-click? event) (= :proposal (:kind hit))))

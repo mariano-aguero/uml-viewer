@@ -719,6 +719,16 @@
       (should (re-find (re-pattern (str "cursor color of grokTab to \\{" gr ", " gg ", " gb "\\}"))
                        script))))
 
+  (it "starts Claude with the same rules and prompt when UML_AGENT is claude"
+    (with-redefs [sketch/agent-kind (constantly :claude)]
+      (let [args (sketch/new-session-args "/tmp/proj")]
+        (should (some #(re-find #"claude$" %) args))
+        (should (some #{"--dangerously-skip-permissions"} args))
+        (should= [sketch/standing-rules sketch/launch-prompt]
+                 (take-last 2 args))
+        (should (some #{"--append-system-prompt"} args))
+        (should-not (some #{"--yolo"} args)))))
+
   (it "closes only this viewer's Terminal window by id"
     (let [script (sketch/close-terminal-script "42")]
       (should (re-find #"exists process \"Terminal\"" script))
@@ -1003,7 +1013,7 @@
                      (:mail-status (call 'on-main-press (state) (at r nil)))))
           (with-redefs [uml-viewer.adapters.sketch/request-regen!
                         (fn [_root] {:woke? false})]
-            (should= "Regen queued; Grok session not attached."
+            (should= "Regen queued; agent session not attached."
                      (:mail-status (call 'on-main-press (state) (at r nil)))))
           (should (string? @woke))))))
 

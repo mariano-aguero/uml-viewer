@@ -90,6 +90,17 @@ up. If that Grok process dies, tmux respawns it in the same pane. That
 instance also runs `clj -M:crap`, `clj -M:mutate`, and IR generate after later
 changes. Project-wide rules live in `.grok/rules/uml-viewer.md`.
 
+Set `UML_AGENT=claude` to run Claude Code as the companion instead of Grok
+(`--dangerously-skip-permissions`, the same rules via
+`--append-system-prompt`, and the same launch prompt). `CLAUDE_BIN`
+overrides the binary path, like `GROK_BIN`. The first launch in a new
+directory shows Claude's folder trust prompt in the companion's Terminal
+window; answer it there.
+
+```bash
+UML_AGENT=claude ./uml
+```
+
 Prefer `./uml` in the examined project (from `get-uml-viewer`). Aliases
 `:uml-viewer` / `:uml-viewer-restart` still work if present.
 
